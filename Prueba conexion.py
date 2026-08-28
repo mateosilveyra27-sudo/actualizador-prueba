@@ -3,7 +3,7 @@ from tkinter import messagebox
 import urllib.request
 import urllib.error
 
-VERSION_ACTUAL = "1.0"
+VERSION_ACTUAL = "1.1"
 
 URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt"
 
@@ -13,7 +13,7 @@ def parse_version(v_str):
 
 
 def mostrar_hola():
-    mensaje.config(text="Hola")
+    mensaje.config(text="Hola Mundo!")
 
 
 def comprobar_actualizacion():
