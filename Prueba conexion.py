@@ -3,7 +3,7 @@ from tkinter import messagebox
 import urllib.request
 import urllib.error
 
-VERSION_ACTUAL = "1.1"
+VERSION_ACTUAL = "1.2"
 
 URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt"
 
