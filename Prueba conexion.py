@@ -13,7 +13,7 @@ def parse_version(v_str):
 
 
 def mostrar_hola():
-    mensaje.config(text="Hola Mundo!")
+    mensaje.config(text="Hola")
 
 
 def comprobar_actualizacion():
