@@ -6,7 +6,7 @@ from tkinter import messagebox
 import urllib.request
 import urllib.error
 
-VERSION_ACTUAL = "1.1"
+VERSION_ACTUAL = "1.3"
 
 URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt"
 URL_SCRIPT = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/prueba.py"
@@ -17,8 +17,7 @@ def parse_version(v_str):
 
 
 def mostrar_hola():
-    mensaje.config(text="Hola")
-
+    mensaje.config(text="Hola, a axel le gustan las gordas")
 
 def descargar_y_reemplazar():
     # Detecta la ruta exacta donde se está ejecutando este script
