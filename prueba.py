@@ -17,13 +17,10 @@ def parse_version(v_str):
 
 
 def mostrar_hola():
-    mensaje.config(text="Hola, a axel le gustan las gordas")
+    mensaje.config(text="Diamante 2")
 
 def descargar_y_reemplazar():
-    # Detecta la ruta exacta donde se está ejecutando este script
     ruta_script_actual = os.path.realpath(sys.argv[0])
-
-    # Evita caché al descargar el código nuevo
     url_script_nocache = f"{URL_SCRIPT}?nocache={int(time.time())}"
     req = urllib.request.Request(
         url_script_nocache,
