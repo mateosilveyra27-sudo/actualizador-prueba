@@ -6,7 +6,7 @@ from tkinter import messagebox
 import urllib.request
 import urllib.error
 
-VERSION_ACTUAL = "1.4"
+VERSION_ACTUAL = "1.1"
 
 URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt"
 URL_SCRIPT = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/prueba.py"
@@ -17,7 +17,7 @@ def parse_version(v_str):
 
 
 def mostrar_hola():
-    mensaje.config(text="Diamante 2")
+    mensaje.config(text="Prueba actualizada correctamente")
 
 def descargar_y_reemplazar():
     ruta_script_actual = os.path.realpath(sys.argv[0])
