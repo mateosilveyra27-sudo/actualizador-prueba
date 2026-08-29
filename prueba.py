@@ -1,112 +1,145 @@
-import os
-import sys
-import time
-import tkinter as tk
-from tkinter import messagebox
-import urllib.request
-import urllib.error
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
-VERSION_ACTUAL = "1.1"
+namespace Prueba
+{
+    public partial class Form1 : Form
+    {
+        private const string VERSION_ACTUAL = "1.1";
+        private const string URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt";
+        private const string URL_EXE = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/MiPrograma.exe";
 
-URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt"
-URL_SCRIPT = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/prueba.py"
+        private Button btnPresionar;
+        private Label lblMensaje;
+        private Button btnActualizar;
 
+        public Form1()
+        {
+            InitializeComponent();
+            ConfigurarInterfaz();
+        }
 
-def parse_version(v_str):
-    return tuple(map(int, v_str.strip().split(".")))
+        private void ConfigurarInterfaz()
+        {
+            this.Text = "Mi programa";
+            this.Size = new System.Drawing.Size(500, 300);
+            this.StartPosition = FormStartPosition.CenterScreen;
 
+            btnPresionar = new Button
+            {
+                Text = "Presionar",
+                Font = new System.Drawing.Font("Arial", 14),
+                Size = new System.Drawing.Size(140, 40),
+                Location = new System.Drawing.Point(180, 80)
+            };
+            btnPresionar.Click += (s, e) => lblMensaje.Text = "Hola";
 
-def mostrar_hola():
-    mensaje.config(text="Prueba actualizada correctamente")
+            lblMensaje = new Label
+            {
+                Text = "",
+                Font = new System.Drawing.Font("Arial", 20),
+                Size = new System.Drawing.Size(300, 40),
+                Location = new System.Drawing.Point(100, 140),
+                TextAlign = System.Drawing.ContentAlignment.MiddleCenter
+            };
 
-def descargar_y_reemplazar():
-    ruta_script_actual = os.path.realpath(sys.argv[0])
-    url_script_nocache = f"{URL_SCRIPT}?nocache={int(time.time())}"
-    req = urllib.request.Request(
-        url_script_nocache,
-        headers={"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
-    )
+            btnActualizar = new Button
+            {
+                Text = "Buscar actualizaciones",
+                Size = new System.Drawing.Size(180, 30),
+                Location = new System.Drawing.Point(160, 210)
+            };
+            btnActualizar.Click += async (s, e) => await ComprobarActualizacionAsync();
 
-    with urllib.request.urlopen(req) as respuesta:
-        nuevo_codigo = respuesta.read()
+            this.Controls.Add(btnPresionar);
+            this.Controls.Add(lblMensaje);
+            this.Controls.Add(btnActualizar);
+        }
 
-    # Sobrescribe el archivo actual en la máquina del usuario
-    with open(ruta_script_actual, "wb") as archivo:
-        archivo.write(nuevo_codigo)
+        private async Task ComprobarActualizacionAsync()
+        {
+            try
+            {
+                using (HttpClient client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+                    client.DefaultRequestHeaders.Add("Cache-Control", "no-cache");
 
-    messagebox.showinfo(
-        "Actualizado",
-        "El programa se actualizó correctamente. Se reiniciará ahora."
-    )
-    
-    # Cierra la ventana actual y reinicia el proceso
-    ventana.destroy()
-    os.execv(sys.executable, [sys.executable] + sys.argv)
+                    string urlVerNoCache = $"{URL_VERSION}?nocache={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                    string ultimaVersionStr = (await client.GetStringAsync(urlVerNoCache)).Trim();
 
+                    Version vActual = new Version(VERSION_ACTUAL);
+                    Version vNueva = new Version(ultimaVersionStr);
 
-def comprobar_actualizacion():
-    try:
-        url_ver_nocache = f"{URL_VERSION}?nocache={int(time.time())}"
-        req = urllib.request.Request(
-            url_ver_nocache,
-            headers={"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"}
-        )
+                    if (vNueva > vActual)
+                    {
+                        DialogResult result = MessageBox.Show(
+                            $"Hay una nueva versión disponible: {ultimaVersionStr}\nTu versión actual es: {VERSION_ACTUAL}\n\n¿Deseas descargar e instalar la actualización ahora?",
+                            "Actualización disponible",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Information
+                        );
 
-        with urllib.request.urlopen(req) as respuesta:
-            ultima_version = respuesta.read().decode("utf-8").strip()
+                        if (result == DialogResult.Yes)
+                        {
+                            await DescargarYReemplazarAsync();
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show("Ya tenés la última versión.", "Programa actualizado", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"No se pudo comprobar la actualización.\n\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
 
-        print("================================")
-        print("Versión actual:", VERSION_ACTUAL)
-        print("Versión de Internet:", repr(ultima_version))
-        print("================================")
+        private async Task DescargarYReemplazarAsync()
+        {
+            try
+            {
+                string rutaExeActual = Process.GetCurrentProcess().MainModule.FileName;
+                string rutaNuevoExe = rutaExeActual + ".new";
+                string rutaScriptBat = Path.Combine(Path.GetTempPath(), "update.bat");
 
-        if parse_version(ultima_version) > parse_version(VERSION_ACTUAL):
-            respuesta_usuario = messagebox.askyesno(
-                "Actualización disponible",
-                f"Hay una nueva versión disponible: {ultima_version}\n"
-                f"Tu versión actual es: {VERSION_ACTUAL}\n\n"
-                f"¿Deseas descargar e instalar la actualización ahora?"
-            )
-            if respuesta_usuario:
-                descargar_y_reemplazar()
-        else:
-            messagebox.showinfo(
-                "Programa actualizado",
-                "Ya tenés la última versión."
-            )
+                using (HttpClient client = new HttpClient())
+                {
+                    string urlExeNoCache = $"{URL_EXE}?nocache={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                    byte[] exeBytes = await client.GetByteArrayAsync(urlExeNoCache);
+                    await File.WriteAllBytesAsync(rutaNuevoExe, exeBytes);
+                }
 
-    except urllib.error.HTTPError as e:
-        messagebox.showerror(
-            "Error HTTP",
-            f"No se pudo acceder al archivo en GitHub ({e.code})."
-        )
-    except Exception as error:
-        messagebox.showerror(
-            "Error",
-            f"No se pudo completar la actualización.\n\n{error}"
-        )
+                string batContent = $@"
+@echo off
+timeout /t 2 /nobreak > nul
+move /y ""{rutaNuevoExe}"" ""{rutaExeActual}""
+start "" ""{rutaExeActual}""
+del ""%~f0""
+";
+                await File.WriteAllTextAsync(rutaScriptBat, batContent);
 
+                MessageBox.Show("El programa se actualizó correctamente. Se reiniciará ahora.", "Actualizado");
 
-ventana = tk.Tk()
-ventana.title("Mi programa")
-ventana.geometry("500x300")
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = rutaScriptBat,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                });
 
-boton = tk.Button(
-    ventana,
-    text="Presionar",
-    font=("Arial", 14),
-    command=mostrar_hola
-)
-boton.place(relx=0.5, rely=0.35, anchor="center")
-
-mensaje = tk.Label(ventana, text="", font=("Arial", 20))
-mensaje.place(relx=0.5, rely=0.50, anchor="center")
-
-boton_actualizar = tk.Button(
-    ventana,
-    text="Buscar actualizaciones",
-    command=comprobar_actualizacion
-)
-boton_actualizar.place(relx=0.5, rely=0.75, anchor="center")
-
-ventana.mainloop()
+                Application.Exit();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error al actualizar: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+    }
+}
