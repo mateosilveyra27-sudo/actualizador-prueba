@@ -11,11 +11,11 @@ namespace Prueba
     {
         private const string VERSION_ACTUAL = "1.2";
         private const string URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt";
-        private const string URL_EXE = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/MiPrograma.exe";
+        private const string URL_EXE = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/prueba.exe";
 
-        private Button btnPresionar;
-        private Label lblMensaje;
-        private Button btnActualizar;
+        private Button btnPresionar = null!;
+        private Label lblMensaje = null!;
+        private Button btnActualizar = null!;
 
         public Form1()
         {
@@ -105,7 +105,7 @@ namespace Prueba
         {
             try
             {
-                string rutaExeActual = Process.GetCurrentProcess().MainModule.FileName;
+                string rutaExeActual = Process.GetCurrentProcess().MainModule?.FileName ?? throw new InvalidOperationException("No se pudo obtener la ruta.");
                 string rutaNuevoExe = rutaExeActual + ".new";
                 string rutaScriptBat = Path.Combine(Path.GetTempPath(), "update.bat");
 
