@@ -6,7 +6,7 @@ from tkinter import messagebox
 import urllib.request
 import urllib.error
 
-VERSION_ACTUAL = "1.0"
+VERSION_ACTUAL = "1.1"
 
 URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt"
 URL_SCRIPT = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/prueba.py"
