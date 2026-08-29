@@ -9,7 +9,7 @@ namespace Prueba
 {
     public partial class Form1 : Form
     {
-        private const string VERSION_ACTUAL = "1.1";
+        private const string VERSION_ACTUAL = "1.2";
         private const string URL_VERSION = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/version.txt";
         private const string URL_EXE = "https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/MiPrograma.exe";
 
@@ -36,7 +36,7 @@ namespace Prueba
                 Size = new System.Drawing.Size(140, 40),
                 Location = new System.Drawing.Point(180, 80)
             };
-            btnPresionar.Click += (s, e) => lblMensaje.Text = "Hola";
+            btnPresionar.Click += (s, e) => lblMensaje.Text = "Diamante 4";
 
             lblMensaje = new Label
             {
