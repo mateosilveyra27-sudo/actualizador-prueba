@@ -7,6 +7,7 @@ import base64
 import json
 import re
 import calendar
+import threading
 from datetime import datetime
 from supabase import create_client, Client
 try:
@@ -17,7 +18,7 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QLineEdit, QStackedWidget, QFrame, QMessageBox,
                              QGraphicsDropShadowEffect, QScrollArea, QTabWidget, QTableWidget,
                              QTableWidgetItem, QHeaderView, QDialog, QFormLayout, QInputDialog)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor
 
 if sys.platform == 'win32':
@@ -68,7 +69,7 @@ HERENCIA_TEXTO_BOTON = "#ffffff"
 
 
 # === ACTUALIZADOR REMOTO GITHUB ===
-VERSION_ACTUAL = '1.0.0'
+VERSION_ACTUAL = '1.0.1'
 URL_VERSION = 'https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/recepcion_version.txt'
 URL_UPDATE_PY = 'https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/Recepcion.py'
 URL_UPDATE_EXE = 'https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/Recepcion.exe'
@@ -345,6 +346,7 @@ class BotonHD(QPushButton):
 
 
 class RecepcionGym(QWidget):
+    actualizacion_detectada = pyqtSignal(str)
     def __init__(self):
         super().__init__()
         self.setWindowTitle("La Herencia Gym - Recepcion")
@@ -373,6 +375,8 @@ class RecepcionGym(QWidget):
         self._crear_boton_actualizacion()
 
     def _crear_boton_actualizacion(self):
+        # Oculto por defecto; aparece únicamente si GitHub tiene una versión superior.
+        self._version_actualizacion_disponible = ""
         self.btn_actualizacion_global = QPushButton("ACTUALIZACIÓN", self)
         self.btn_actualizacion_global.setFixedSize(150, 38)
         self.btn_actualizacion_global.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -381,10 +385,45 @@ class RecepcionGym(QWidget):
             "border-radius:9px; font-size:12px; font-weight:900; padding:4px 10px; }} "
             "QPushButton:hover { background:white; color:black; }"
         )
-        self.btn_actualizacion_global.clicked.connect(lambda: comprobar_actualizacion(self))
+        self.btn_actualizacion_global.clicked.connect(self._actualizar_desde_boton)
+        self.actualizacion_detectada.connect(self._mostrar_boton_actualizacion)
+        self.btn_actualizacion_global.hide()
+        QTimer.singleShot(900, self._iniciar_comprobacion_actualizacion_silenciosa)
+
+    def _iniciar_comprobacion_actualizacion_silenciosa(self):
+        def tarea():
+            try:
+                req = _request_github_sin_cache(URL_VERSION)
+                with urllib.request.urlopen(req, timeout=8) as respuesta:
+                    ultima_version = respuesta.read().decode("utf-8-sig").strip()
+                if _parse_version_actualizador(ultima_version) > _parse_version_actualizador(VERSION_ACTUAL):
+                    self.actualizacion_detectada.emit(ultima_version)
+            except Exception:
+                pass
+
+        threading.Thread(target=tarea, name="LaHerencia-UpdateCheck", daemon=True).start()
+
+    def _mostrar_boton_actualizacion(self, ultima_version):
+        self._version_actualizacion_disponible = str(ultima_version or "").strip()
+        if not self._version_actualizacion_disponible:
+            return
         self._reposicionar_boton_actualizacion()
-        self.btn_actualizacion_global.raise_()
         self.btn_actualizacion_global.show()
+        self.btn_actualizacion_global.raise_()
+
+    def _actualizar_desde_boton(self):
+        ultima = self._version_actualizacion_disponible or "nueva versión"
+        aceptar = QMessageBox.question(
+            self,
+            "Actualización disponible",
+            f"Hay una nueva versión disponible: {ultima}\n"
+            f"Versión instalada: {VERSION_ACTUAL}\n\n"
+            "¿Deseas descargarla e instalarla ahora?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if aceptar == QMessageBox.StandardButton.Yes:
+            _descargar_actualizacion(self)
 
     def _reposicionar_boton_actualizacion(self):
         if hasattr(self, "btn_actualizacion_global"):
