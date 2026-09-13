@@ -10,6 +10,7 @@ import json
 import calendar
 import gzip
 import hashlib
+import threading
 from datetime import datetime
 from urllib.parse import quote
 from urllib.request import urlopen
@@ -24,13 +25,13 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QG
                              QMessageBox, QFileDialog, QFormLayout, QColorDialog, QGraphicsDropShadowEffect,
                              QInputDialog, QTextEdit, QDialog, QScrollArea, QSpinBox, QTabWidget,
                              QRadioButton, QButtonGroup, QCalendarWidget, QTabBar)
-from PyQt6.QtCore import Qt, QDate, QTimer, QEvent
+from PyQt6.QtCore import Qt, QDate, QTimer, QEvent, pyqtSignal
 from PyQt6.QtGui import QColor, QFont, QBrush, QPainter, QIntValidator, QTextCharFormat
 
 
 
 # === ACTUALIZADOR REMOTO GITHUB ===
-VERSION_ACTUAL = '6.0.0'
+VERSION_ACTUAL = '6.0.1'
 URL_VERSION = 'https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/administracion_version.txt'
 URL_UPDATE_PY = 'https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/Administracion.py'
 URL_UPDATE_EXE = 'https://raw.githubusercontent.com/mateosilveyra27-sudo/actualizador-prueba/main/Administracion.exe'
@@ -448,6 +449,7 @@ class DialogPlanillaSalud(QDialog):
 
 # === CLASE PRINCIPAL ADMINISTRACIÓN ===
 class AdminGym(QWidget):
+    actualizacion_detectada = pyqtSignal(str)
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Administración ULTRA HD - La Herencia Gym v6.0")
@@ -505,6 +507,8 @@ class AdminGym(QWidget):
         self._crear_boton_actualizacion()
 
     def _crear_boton_actualizacion(self):
+        # Permanece oculto: solo aparece cuando GitHub informa una versión más nueva.
+        self._version_actualizacion_disponible = ""
         self.btn_actualizacion_global = QPushButton("ACTUALIZACIÓN", self)
         self.btn_actualizacion_global.setFixedSize(150, 38)
         self.btn_actualizacion_global.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -513,10 +517,47 @@ class AdminGym(QWidget):
             "border-radius:9px; font-size:12px; font-weight:900; padding:4px 10px; }} "
             "QPushButton:hover { background:white; color:black; }"
         )
-        self.btn_actualizacion_global.clicked.connect(lambda: comprobar_actualizacion(self))
+        self.btn_actualizacion_global.clicked.connect(self._actualizar_desde_boton)
+        self.actualizacion_detectada.connect(self._mostrar_boton_actualizacion)
+        self.btn_actualizacion_global.hide()
+        # La consulta HTTP se hace fuera del hilo de la interfaz para no generar lag.
+        QTimer.singleShot(900, self._iniciar_comprobacion_actualizacion_silenciosa)
+
+    def _iniciar_comprobacion_actualizacion_silenciosa(self):
+        def tarea():
+            try:
+                req = _request_github_sin_cache(URL_VERSION)
+                with urllib.request.urlopen(req, timeout=8) as respuesta:
+                    ultima_version = respuesta.read().decode("utf-8-sig").strip()
+                if _parse_version_actualizador(ultima_version) > _parse_version_actualizador(VERSION_ACTUAL):
+                    self.actualizacion_detectada.emit(ultima_version)
+            except Exception:
+                # Al iniciar no mostramos errores: si no hay Internet, el programa sigue normal.
+                pass
+
+        threading.Thread(target=tarea, name="LaHerencia-UpdateCheck", daemon=True).start()
+
+    def _mostrar_boton_actualizacion(self, ultima_version):
+        self._version_actualizacion_disponible = str(ultima_version or "").strip()
+        if not self._version_actualizacion_disponible:
+            return
         self._reposicionar_boton_actualizacion()
-        self.btn_actualizacion_global.raise_()
         self.btn_actualizacion_global.show()
+        self.btn_actualizacion_global.raise_()
+
+    def _actualizar_desde_boton(self):
+        ultima = self._version_actualizacion_disponible or "nueva versión"
+        aceptar = QMessageBox.question(
+            self,
+            "Actualización disponible",
+            f"Hay una nueva versión disponible: {ultima}\n"
+            f"Versión instalada: {VERSION_ACTUAL}\n\n"
+            "¿Deseas descargarla e instalarla ahora?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if aceptar == QMessageBox.StandardButton.Yes:
+            _descargar_actualizacion(self)
 
     def _reposicionar_boton_actualizacion(self):
         if hasattr(self, "btn_actualizacion_global"):
@@ -2307,8 +2348,61 @@ QPushButton:hover {{ background: white; color: black; border: 2px solid {HERENCI
 
     def borrar_socio(self):
         f = self.tabla.currentRow()
-        if f >= 0 and QMessageBox.question(self, "Borrar", "¿Eliminar socio?") == QMessageBox.StandardButton.Yes:
-            self.supabase.table('socios').delete().eq('dni', self.tabla.item(f, 0).text()).execute(); self.cargar_tabla()
+        if f < 0:
+            QMessageBox.warning(self, "Dar de baja", "Seleccioná un socio de la lista primero.")
+            return
+
+        dni = str(self.tabla.item(f, 0).text() or "").strip()
+        nombre = self.tabla.item(f, 1).text() if self.tabla.item(f, 1) else dni
+        confirmar = QMessageBox.question(
+            self,
+            "ELIMINAR SOCIO DEFINITIVAMENTE",
+            f"¿Eliminar definitivamente a {nombre}?\n\n"
+            "Se borrarán su ficha, planilla de salud, rutina, asistencias, sesiones de entrenamiento, "
+            "historiales archivados y su inscripción asociada.\n\n"
+            "ESTA ACCIÓN NO SE PUEDE DESHACER.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if confirmar != QMessageBox.StandardButton.Yes:
+            return
+
+        try:
+            # 1) Localiza y elimina primero cualquier historial pesado guardado en Storage.
+            archivos = (self.supabase.table('historial_archivos')
+                        .select('storage_path')
+                        .eq('dni', dni)
+                        .execute()).data or []
+            rutas = [str(x.get('storage_path') or '').strip() for x in archivos]
+            rutas = [ruta for ruta in rutas if ruta]
+            if rutas:
+                try:
+                    self.supabase.storage.from_(HISTORIAL_BUCKET).remove(rutas)
+                except Exception as e:
+                    texto = str(e).lower()
+                    # Si el objeto ya no existe, igualmente podemos limpiar su referencia.
+                    if '404' not in texto and 'not found' not in texto and 'object not found' not in texto:
+                        raise RuntimeError(f"No se pudieron eliminar los archivos históricos de Storage: {e}") from e
+
+            # 2) Borra todos los datos relacionados por DNI. Socios se elimina al final.
+            for tabla in ('sesiones_entrenamiento', 'asistencias', 'rutinas_socios', 'historial_archivos', 'inscripciones'):
+                self.supabase.table(tabla).delete().eq('dni', dni).execute()
+
+            # socios contiene también la planilla de salud y los datos personales.
+            self.supabase.table('socios').delete().eq('dni', dni).execute()
+            self.cargar_tabla()
+            QMessageBox.information(
+                self,
+                "Socio eliminado",
+                "El socio y toda su información vinculada fueron eliminados de Supabase.",
+            )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "No se pudo completar la baja",
+                "La eliminación total no pudo terminar. No se continuará silenciosamente para evitar dejar datos olvidados.\n\n"
+                f"Detalle: {e}",
+            )
 
     def mostrar_info_socio(self, dni):
         try:
